@@ -177,35 +177,35 @@ result_board, fully_solved = bin_to_normal(solver_board)
 def dfs_solver(board):
 
     # setting up and populating dictionaries of sets to keep track of nums in each row, col, box
-    
     rows = dict()
     cols = dict()
     boxes = dict()
 
-    for r in range(SUDOKU_SIZE):
-        rows[r] = set()
+    for i in range(SUDOKU_SIZE):
+        rows[i] = set()
+        cols[i] = set()
+        boxes[i] = set()
 
-    for c in range(SUDOKU_SIZE):
-        cols[c] = set()
-
-    for r in range(ROWS_OF_BOXES):
-        for c in range(COLS_OF_BOXES):
-            boxes[(r,c)] = set()  
-
+    # adding all the existing filled in numbers to the hashmap of row, col, box 
+    # (key = idx, item = set of numbers so far)
     for r in range(SUDOKU_SIZE):
         for c in range(SUDOKU_SIZE):
             num = board[r][c]
             if num != 0:
                 rows[r].add(num)
                 cols[c].add(num)
-                boxes[(r // (SUDOKU_SIZE // ROWS_OF_BOXES), c // (SUDOKU_SIZE // COLS_OF_BOXES))].add(num)
+                box_key = get_box_key(r, c)
+                boxes[box_key].add(num)
     
+    # helper to guide left to right, top to down, fill out and backtrack approach
     def next_place(r,c):
         if c == SUDOKU_SIZE - 1:
             return (r+1, 0)
         else:
             return (r, c+1)
     
+    # actual backtracking function that attempts to fill out recursively, ensuring constraints are satisfied,
+    # backtracks if fails and retries until entire Sudoku filled
     def backtrack(r, c):
 
         if r >= SUDOKU_SIZE:
@@ -217,22 +217,24 @@ def dfs_solver(board):
             return backtrack(nr,nc)
 
         for i in range(1, SUDOKU_SIZE + 1):
-            if i not in rows[r] and i not in cols[c] and i not in boxes[(r // (SUDOKU_SIZE // ROWS_OF_BOXES), c // (SUDOKU_SIZE // COLS_OF_BOXES))]:
+            box_key = get_box_key(r,c)
+            if i not in rows[r] and i not in cols[c] and i not in boxes[box_key]:
                 board[r][c] = i
                 rows[r].add(i)
                 cols[c].add(i)
-                boxes[(r // (SUDOKU_SIZE // ROWS_OF_BOXES), c // (SUDOKU_SIZE // COLS_OF_BOXES))].add(i)
+                boxes[box_key].add(i)
                 if backtrack(nr,nc):
                     return True
                 board[r][c] = 0
                 rows[r].remove(i)
                 cols[c].remove(i)
-                boxes[(r // (SUDOKU_SIZE // ROWS_OF_BOXES), c // (SUDOKU_SIZE // COLS_OF_BOXES))].remove(i)
+                boxes[box_key].remove(i)
         
         return False
     
     backtrack(0,0)
 
+# Display output in terminal
 if fully_solved:
     print("Final solved board (no backtracking needed)")
     print_board(result_board)

@@ -1,0 +1,24 @@
+{
+  "name": "linkedin-games-solver",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KriChau95/linkedin-games-solver.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/KriChau95/linkedin-games-solver/issues"
+  },
+  "homepage": "https://github.com/KriChau95/linkedin-games-solver#readme",
+  "devDependencies": {
+    "@types/chrome": "^0.1.36"
+  }
+}
