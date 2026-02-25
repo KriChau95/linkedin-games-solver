@@ -83,7 +83,7 @@ def eliminate_impossible(board):
                 for other_c in range(SUDOKU_SIZE):
                     if other_c != c:
                         board[r][other_c] &= ~board[r][c]
-                # enforce one instane per box
+                # enforce one instance per box
                 for other_r, other_c in box_map[get_box_key(r,c)]:
                     if other_r != r or other_c != c:
                         board[other_r][other_c] &= ~board[r][c]
