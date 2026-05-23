@@ -1,87 +1,125 @@
-"use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-var _a;
-console.log(document.getElementById("solve-btn"));
-(_a = document.getElementById("solve-btn")) === null || _a === void 0 ? void 0 : _a.addEventListener("click", () => __awaiter(void 0, void 0, void 0, function* () {
+import { solve_sudoku } from './sudoku_solver.js';
+document.getElementById("solve-btn")?.addEventListener("click", async () => {
     // Getting the current active tab
-    const tabs = yield chrome.tabs.query({ active: true, currentWindow: true });
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     const tab = tabs[0];
-    if (!(tab === null || tab === void 0 ? void 0 : tab.id)) {
+    // return an error if no active tab found
+    if (!tab?.id) {
         return console.error("No active tab found!");
     }
-    // Inject script into the page
-    chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: () => {
-            // 1. Extract Sudoku Grid
-            var _a;
-            const cells = Array.from(document.querySelectorAll('.sudoku-cell'));
-            console.log(cells);
-            const board = [];
-            const SUDOKU_SIZE = 6;
-            for (let r = 0; r < SUDOKU_SIZE; r++) {
-                const row = [];
-                for (let c = 0; c < SUDOKU_SIZE; c++) {
-                    const cellIdx = r * SUDOKU_SIZE + c;
-                    const cell = cells[cellIdx];
-                    const valueText = ((_a = cell === null || cell === void 0 ? void 0 : cell.querySelector('.sudoku-cell-content')) === null || _a === void 0 ? void 0 : _a.innerText.trim()) || '';
-                    row.push(valueText === '' ? 0 : parseInt(valueText, 10));
+    const url = tab.url;
+    console.log("Current URL:", url);
+    if (url?.includes("sudoku")) {
+        // store the board by parsing the web page
+        const board = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: () => {
+                // checking for iframe to ensure it works in both logged in and logged out version
+                let root = document;
+                const iframe = document.querySelector("iframe");
+                if (iframe?.contentDocument) {
+                    root = iframe.contentDocument;
                 }
-                board.push(row);
+                // store raw cells as HTMLElement Array
+                const cells = Array.from(root.querySelectorAll('.sudoku-cell'));
+                // initialize empty board
+                const board = [];
+                const SUDOKU_SIZE = 6;
+                // loop through 1D Array of cells to parse it into a 2D array - board
+                for (let r = 0; r < SUDOKU_SIZE; r++) {
+                    const row = [];
+                    for (let c = 0; c < SUDOKU_SIZE; c++) {
+                        const cellIdx = r * SUDOKU_SIZE + c;
+                        const cell = cells[cellIdx];
+                        const valueText = cell?.querySelector('.sudoku-cell-content')?.innerText.trim() || '';
+                        row.push(valueText === '' ? 0 : parseInt(valueText, 10));
+                    }
+                    board.push(row);
+                }
+                return board;
             }
-            console.log(board);
-            // 2. Solve Sudoku
-        }
-    });
-}));
-// document.getElementById("solve-btn")?.addEventListener("click", async () => {
-//     // Get the current active tab
-//     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-//     const tab = tabs[0];
-//     if (!tab?.id) return console.error("No active tab found!");
-//     // Inject script into the page
-//     chrome.scripting.executeScript({
-//         target: { tabId: tab.id },
-//         func: () => {
-//             // --- Extract the Sudoku grid ---
-//             const cells = Array.from(document.querySelectorAll('.sudoku-cell')) as HTMLElement[];
-//             const gridSize = 6; // standard Sudoku
-//             const grid: number[][] = [];
-//             for (let row = 0; row < gridSize; row++) {
-//                 const rowData: number[] = [];
-//                 for (let col = 0; col < gridSize; col++) {
-//                     const cellIndex = row * gridSize + col;
-//                     const cell = cells[cellIndex];
-//                     const valueText = cell?.querySelector<HTMLElement>('.sudoku-cell-content')?.innerText.trim() || '';
-//                     rowData.push(valueText === '' ? 0 : parseInt(valueText, 10));
-//                 }
-//                 grid.push(rowData);
-//             }
-//             console.log("Extracted Sudoku Grid:", grid);
-//             // --- Focus the active cell and simulate keypress ---
-//             const activeCell = document.querySelector<HTMLElement>(".sudoku-cell-active");
-//             if (!activeCell) return console.warn("No active Sudoku cell!");
-//             activeCell.focus();
-//             const pressKey = (key: string, code: string, keyCode: number) => {
-//                 ["keydown", "keyup"].forEach(type => {
-//                     const event = new KeyboardEvent(type, {
-//                         key, code, keyCode, which: keyCode, bubbles: true, cancelable: true
-//                     });
-//                     activeCell.dispatchEvent(event);
-//                 });
-//             };
-//             // Example: type "1" and move right
-//             pressKey("1", "Digit1", 49);
-//             pressKey("ArrowRight", "ArrowRight", 39);
-//             console.log("Dispatched 1 keypress to the active cell");
-//         }
-//     });
-// });
+        }).then(res => res[0].result) || [];
+        // get commands list from solve_sudoku function, passing in original board (2D array of elements (values: 0-6))
+        let commands = solve_sudoku(board);
+        // execute script to fill in sudoku by passing in commands in args list
+        await chrome.scripting.executeScript({
+            target: { tabId: tab.id, allFrames: true },
+            func: (commands) => {
+                // create a function called pressKey that takes in key, code, and keyCode of a key
+                // and creates a Keyboard event for a full key press cycle simulation
+                const pressKey = (key, code, keyCode) => {
+                    // define active element (selected box) as target
+                    const target = document.activeElement;
+                    // simulate key down and key up event in succession to simulate clicking a key
+                    ["keydown", "keyup"].forEach(type => {
+                        const event = new KeyboardEvent(type, {
+                            key, code, keyCode, which: keyCode, bubbles: true, cancelable: true
+                        });
+                        target.dispatchEvent(event);
+                    });
+                };
+                // execute each of the commands in commands by calling the pressKey function
+                for (const [key, code, keyCode] of commands) {
+                    pressKey(key, code, keyCode);
+                }
+            },
+            args: [commands]
+        });
+    }
+    else if (url?.includes("queens")) {
+        // adjust delay as needed
+        console.log("queens");
+        const board = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: () => {
+                // checking for iframe to ensure it works in both logged in and logged out version
+                let root = document;
+                // const iframe = document.querySelector("iframe");
+                // if (iframe?.contentDocument) {
+                //     root = iframe.contentDocument;
+                // }
+                const gameBoard = document.getElementById("queens-game-board");
+                let cells = null;
+                if (gameBoard != null) {
+                    cells = gameBoard.querySelectorAll('[role="button"]');
+                }
+                let size = null;
+                if (cells != null) {
+                    for (let i = 1; i < cells.length; i++) {
+                        if (Number(cells[i].getAttribute('aria-label')?.slice(-1)) < Number(cells[i - 1].getAttribute('aria-label')?.slice(-1))) {
+                            size = Number(cells[i - 1].getAttribute('aria-label')?.slice(-1));
+                            break;
+                        }
+                    }
+                }
+                const board = [];
+                if (size == null || cells == null) {
+                    return;
+                }
+                let color_map = new Map();
+                let color_val = 0;
+                for (let r = 0; r < size; r++) {
+                    const row = [];
+                    for (let c = 0; c < size; c++) {
+                        const cellIdx = r * size + c;
+                        const cell = cells[cellIdx];
+                        let description = cell.getAttribute('aria-label');
+                        if (description == null) {
+                            return;
+                        }
+                        const color = description.match(/color (.+?),/)?.[1] || '';
+                        if (!color_map.has(color)) {
+                            color_map.set(color, color_val);
+                            color_val++;
+                        }
+                        row.push(color_map.get(color));
+                    }
+                    board.push(row);
+                }
+                return board;
+            }
+        }).then(res => res[0].result) || [];
+        console.log("after");
+        console.log(board);
+    }
+});
