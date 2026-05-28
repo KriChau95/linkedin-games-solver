@@ -1,16 +1,18 @@
 // import types and functions from sudoku_solver
 import { solve_queens } from './queens_solver.js';
 import { solve_sudoku } from './sudoku_solver.js';
+import { solve_zip } from './zip_solver.js';
 document.getElementById("solve-btn")?.addEventListener("click", async () => {
-    // Getting the current active tab
+    // getting the current active tab
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     const tab = tabs[0];
     // return an error if no active tab found
     if (!tab?.id) {
         return console.error("No active tab found!");
     }
+    // extract current page URL
     const url = tab.url;
-    console.log("Current URL:", url);
+    // determine which game is being played
     if (url?.includes("sudoku")) {
         // store the board by parsing the web page
         const board = await chrome.scripting.executeScript({
@@ -69,8 +71,6 @@ document.getElementById("solve-btn")?.addEventListener("click", async () => {
         });
     }
     else if (url?.includes("queens")) {
-        // adjust delay as needed
-        console.log("queens");
         const board = await chrome.scripting.executeScript({
             target: { tabId: tab.id },
             func: () => {
@@ -150,11 +150,73 @@ document.getElementById("solve-btn")?.addEventListener("click", async () => {
         });
     }
     else if (url?.includes("zip")) {
-        const board = await chrome.scripting.executeScript({
+        const [board, walls] = await chrome.scripting.executeScript({
             target: { tabId: tab.id },
             func: () => {
-                console.log(Array.from(document.querySelectorAll('[data-testid^="cell-"]')));
+                let cells = Array.from(document.querySelectorAll('[data-cell-idx]'));
+                // initialize empty board
+                const board = [];
+                const BOARD_SIZE = ~~Math.sqrt(cells.length);
+                const walls = [];
+                // loop through 1D Array of cells to parse it into a 2D array - board
+                for (let r = 0; r < BOARD_SIZE; r++) {
+                    const row = [];
+                    for (let c = 0; c < BOARD_SIZE; c++) {
+                        // get current cell
+                        const cellIdx = r * BOARD_SIZE + c;
+                        const cell = cells[cellIdx];
+                        // get full cell and descendants (needed to process walls)
+                        const complete_cell = [cell, ...cell.querySelectorAll('*')];
+                        for (let element of complete_cell) {
+                            const after = window.getComputedStyle(element, '::after');
+                            const border_right_width = after.getPropertyValue('border-right-width');
+                            const border_bottom_width = after.getPropertyValue('border-bottom-width');
+                            if (border_right_width != '0px') {
+                                let curr_wall = [r, c, r, c + 1];
+                                walls.push(curr_wall);
+                            }
+                            if (border_bottom_width != '0px') {
+                                let curr_wall = [r, c, r + 1, c];
+                                walls.push(curr_wall);
+                            }
+                        }
+                        const valueText = cell?.getAttribute('aria-label') || '';
+                        const numText = valueText.substring(valueText.indexOf(' ') + 1);
+                        row.push(valueText === '' ? 0 : parseInt(numText, 10));
+                    }
+                    board.push(row);
+                }
+                return [board, walls];
             }
-        }).then(res => res[0].result) || [];
+        }).then(res => res[0].result);
+        // get commands list from solve_zip function, passing in original board (2D array of elements (values: 0-6))
+        let commands = solve_zip(board, walls);
+        console.log(commands);
+        // execute script to fill in sudoku by passing in commands in args list
+        await chrome.scripting.executeScript({
+            target: { tabId: tab.id, allFrames: true },
+            func: async (commands) => {
+                const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+                // create a function called pressKey that takes in key, code, and keyCode of a key
+                // and creates a Keyboard event for a full key press cycle simulation
+                const pressKey = (key, code, keyCode) => {
+                    // define active element (selected box) as target
+                    const target = document.activeElement;
+                    // simulate key down and key up event in succession to simulate clicking a key
+                    ["keydown", "keyup"].forEach(type => {
+                        const event = new KeyboardEvent(type, {
+                            key, code, keyCode, which: keyCode, bubbles: true, cancelable: true
+                        });
+                        target.dispatchEvent(event);
+                    });
+                };
+                // execute each of the commands in commands by calling the pressKey function
+                for (const [key, code, keyCode] of commands) {
+                    pressKey(key, code, keyCode);
+                    await sleep(1);
+                }
+            },
+            args: [commands]
+        });
     }
 });
