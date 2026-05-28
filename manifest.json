@@ -17,5 +17,9 @@
       "matches": ["*://*.linkedin.com/*"],
       "js": ["dist/popup.js"]
     }
-  ]
+  ],
+  "web_accessible_resources": [{
+    "resources": ["emulate-tab.min.js"],
+    "matches": ["*://*.linkedin.com/*"]
+  }]
 }

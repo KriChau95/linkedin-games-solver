@@ -3,21 +3,33 @@ from copy import deepcopy
 from itertools import combinations
 
 # numbers of rows and columns in the square grid
-SIZE = 9
+SIZE = 8
 
 # represent board as 2D array where each group (a.k.a. distinct colored block)
 # is a distinct number in the 2D array
+
 board = [
-    [0,0,0,1,1,0,0,0,0],
-    [0,0,1,1,0,0,2,2,0],
-    [0,0,0,0,0,2,2,0,0],
-    [0,0,0,0,3,3,4,0,0],
-    [0,0,0,3,3,4,4,5,0],
-    [0,0,6,6,7,4,5,5,0],
-    [0,6,6,7,7,0,5,0,0],
-    [0,8,8,7,0,0,0,0,0],
-    [8,8,0,0,0,0,0,0,0]
+    [0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 1, 1],
+    [0, 2, 0, 0, 3, 1, 1, 1], 
+    [2, 2, 2, 3, 3, 3, 1, 1],
+    [2, 2, 2, 3, 3, 3, 4, 1],
+    [2, 2, 2, 3, 5, 3, 4, 1],
+    [2, 2, 6, 3, 5, 3, 4, 1],
+    [7, 2, 6, 3, 5, 3, 4, 1]
 ]
+
+#  board = [
+#     [0,0,0,1,1,0,0,0,0],
+#     [0,0,1,1,0,0,2,2,0],
+#     [0,0,0,0,0,2,2,0,0],
+#     [0,0,0,0,3,3,4,0,0],
+#     [0,0,0,3,3,4,4,5,0],
+#     [0,0,6,6,7,4,5,5,0],
+#     [0,6,6,7,7,0,5,0,0],
+#     [0,8,8,7,0,0,0,0,0],
+#     [8,8,0,0,0,0,0,0,0]
+# ]
 
 # SIZE = 8
 
@@ -126,6 +138,11 @@ def eliminate_impossible(board, state_board, groups):
 
     return state_board, new_groups
 
+state_board, new_groups = eliminate_impossible(board, state_board, groups)
+
+print_board(state_board)
+exit()
+
 # helper method that uses a line of deductive reasoning to eliminate impossible cells
 # for example if I focus on 2 columns, and there are
 # two distinct 2x2 blocks in them
@@ -193,7 +210,7 @@ def pigeonhole_rows_cols(board, state_board, groups):
         for block_id, freq in group_freq.items():
             if freq == len(groups[block_id]):
                 selected_set.append(block_id)
-        if len(selected_set) == len(col_set):
+        if len(selected_set) == len(row_set):
             chosen_rows.append(row_set)
             chosen_groups.append(selected_set)
 

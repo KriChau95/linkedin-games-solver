@@ -1,6 +1,8 @@
 // import types and functions from sudoku_solver
+import { solve_queens, Tuple } from './queens_solver.js';
 import type { KeyPress } from './sudoku_solver.js';
 import { solve_sudoku } from './sudoku_solver.js';
+
 
 document.getElementById("solve-btn")?.addEventListener("click", async() =>{
 
@@ -174,9 +176,52 @@ document.getElementById("solve-btn")?.addEventListener("click", async() =>{
 
         }).then(res => res[0].result) || [];
 
-        console.log("after");
-        console.log(board);
+        // get commands list from solve_sudoku function, passing in original board (2D array of elements (values: 0-6))
+        let queen_coords: Tuple[] = solve_queens(board);
 
+        await chrome.scripting.executeScript({
+            target: {tabId: tab.id, allFrames: true},
+            func: async (queen_coords) => {
+
+                const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+                const board = document.getElementById("queens-game-board");
+                let cells = board?.querySelectorAll('[role="button"]') || [];
+                const size = Math.sqrt(cells.length);
+
+                const clickCell = (row: number, col: number) => {
+                    
+                    const idx = row * size + col;
+                    const cell = cells[idx];
+
+                    // try multiple click methods
+                    ((cell.firstElementChild || cell) as HTMLElement).click();
+
+                    cell.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+                    cell.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+                    cell.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+                };
+                
+                for (let [r, c] of queen_coords){
+                    clickCell(r, c);
+                    await sleep(10);
+                    clickCell(r, c);
+                    await sleep(10);
+                }
+},
+            args: [queen_coords]
+        });
+
+    } else if (url?.includes("zip")){
+                const board: number[][] = await chrome.scripting.executeScript({
+            target: {tabId: tab.id},
+            func: () => {
+
+                console.log(Array.from(document.querySelectorAll('[data-testid^="cell-"]')));
+            }
+
+        }).then(res => res[0].result) || [];
     }
 
 })

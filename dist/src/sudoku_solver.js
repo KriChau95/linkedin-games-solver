@@ -42,10 +42,10 @@ export function solve_sudoku(board) {
     for (let r = 0; r < SUDOKU_SIZE; r++) {
         for (let c = 0; c < SUDOKU_SIZE; c++) {
             if (board[r][c] != 0) {
-                solver_board[r][c] = Math.pow(2, (board[r][c] - 1));
+                solver_board[r][c] = 2 ** (board[r][c] - 1);
             }
             else {
-                solver_board[r][c] = Math.pow(2, SUDOKU_SIZE) - 1;
+                solver_board[r][c] = 2 ** SUDOKU_SIZE - 1;
             }
         }
     }
@@ -196,13 +196,13 @@ function deduct_and_fill(board) {
             let summation = 0;
             let spot = [-1, -1];
             for (let c = 0; c < SUDOKU_SIZE; c++) {
-                summation += (board[r][c] & (Math.pow(2, shift))) >> shift;
-                if ((board[r][c] & (Math.pow(2, shift))) >> shift == 1) {
+                summation += (board[r][c] & (2 ** shift)) >> shift;
+                if ((board[r][c] & (2 ** shift)) >> shift == 1) {
                     spot = [r, c];
                 }
             }
             if (summation == 1) {
-                board[spot[0]][spot[1]] = Math.pow(2, shift);
+                board[spot[0]][spot[1]] = 2 ** shift;
             }
         }
     }
@@ -212,13 +212,13 @@ function deduct_and_fill(board) {
             let summation = 0;
             let spot = [-1, -1];
             for (let r = 0; r < SUDOKU_SIZE; r++) {
-                summation += (board[r][c] & (Math.pow(2, shift))) >> shift;
-                if ((board[r][c] & (Math.pow(2, shift))) >> shift == 1) {
+                summation += (board[r][c] & (2 ** shift)) >> shift;
+                if ((board[r][c] & (2 ** shift)) >> shift == 1) {
                     spot = [r, c];
                 }
             }
             if (summation == 1) {
-                board[spot[0]][spot[1]] = Math.pow(2, shift);
+                board[spot[0]][spot[1]] = 2 ** shift;
             }
         }
     }
@@ -228,13 +228,13 @@ function deduct_and_fill(board) {
             let summation = 0;
             let spot = [-1, -1];
             for (const [r, c] of box) {
-                summation += (board[r][c] & (Math.pow(2, shift))) >> shift;
-                if ((board[r][c] & (Math.pow(2, shift))) >> shift == 1) {
+                summation += (board[r][c] & (2 ** shift)) >> shift;
+                if ((board[r][c] & (2 ** shift)) >> shift == 1) {
                     spot = [r, c];
                 }
             }
             if (summation == 1) {
-                board[spot[0]][spot[1]] = Math.pow(2, shift);
+                board[spot[0]][spot[1]] = 2 ** shift;
             }
         }
     }

@@ -122,39 +122,31 @@ document.getElementById("solve-btn")?.addEventListener("click", async () => {
             }
         }).then(res => res[0].result) || [];
         // get commands list from solve_sudoku function, passing in original board (2D array of elements (values: 0-6))
-        let queen_coords = solve_queens(board);
+        let commands = solve_queens(board);
+        console.log(commands);
+        // execute script to fill in sudoku by passing in commands in args list
         await chrome.scripting.executeScript({
             target: { tabId: tab.id, allFrames: true },
-            func: async (queen_coords) => {
-                const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-                const board = document.getElementById("queens-game-board");
-                let cells = board?.querySelectorAll('[role="button"]') || [];
-                const size = Math.sqrt(cells.length);
-                const clickCell = (row, col) => {
-                    const idx = row * size + col;
-                    const cell = cells[idx];
-                    // try multiple click methods
-                    (cell.firstElementChild || cell).click();
-                    cell.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-                    cell.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
-                    cell.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            func: (commands) => {
+                // create a function called pressKey that takes in key, code, and keyCode of a key
+                // and creates a Keyboard event for a full key press cycle simulation
+                const pressKey = (key, code, keyCode) => {
+                    // define active element (selected box) as target
+                    const target = document.activeElement;
+                    // simulate key down and key up event in succession to simulate clicking a key
+                    ["keydown", "keyup"].forEach(type => {
+                        const event = new KeyboardEvent(type, {
+                            key, code, keyCode, which: keyCode, bubbles: true, cancelable: true
+                        });
+                        target.dispatchEvent(event);
+                    });
                 };
-                for (let [r, c] of queen_coords) {
-                    clickCell(r, c);
-                    await sleep(10);
-                    clickCell(r, c);
-                    await sleep(10);
+                // execute each of the commands in commands by calling the pressKey function
+                for (const [key, code, keyCode] of commands) {
+                    pressKey(key, code, keyCode);
                 }
             },
-            args: [queen_coords]
+            args: [commands]
         });
-    }
-    else if (url?.includes("zip")) {
-        const board = await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            func: () => {
-                console.log(Array.from(document.querySelectorAll('[data-testid^="cell-"]')));
-            }
-        }).then(res => res[0].result) || [];
     }
 });
