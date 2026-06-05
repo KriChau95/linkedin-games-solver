@@ -9,8 +9,8 @@ Queens:
 
 Zip:
 
-1. comments
-2. logged out functionality
+1. logged out functionality
+2. comments
 
 Tango:
 
