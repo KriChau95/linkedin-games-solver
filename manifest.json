@@ -7,9 +7,10 @@
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
-      "16": "image.png",
-      "48": "image.png",
-      "128": "image.png"
+      "16": "logo.png",
+      "32": "logo.png",
+      "64": "logo.png",
+      "128": "logo.png"
     }
   },
   "content_scripts": [

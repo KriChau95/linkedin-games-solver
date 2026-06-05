@@ -2,6 +2,7 @@
 import { solve_queens } from './queens_solver.js';
 import { solve_sudoku } from './sudoku_solver.js';
 import { solve_zip } from './zip_solver.js';
+import { solve_tango } from './tango_solver.js';
 document.getElementById("solve-btn")?.addEventListener("click", async () => {
     // getting the current active tab
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -70,7 +71,8 @@ document.getElementById("solve-btn")?.addEventListener("click", async () => {
             args: [commands]
         });
     }
-    else if (url?.includes("queens")) {
+    else if (url?.includes("queens")) { // queens solver
+        // extract the board by getting each cell
         const board = await chrome.scripting.executeScript({
             target: { tabId: tab.id },
             func: () => {
@@ -82,9 +84,11 @@ document.getElementById("solve-btn")?.addEventListener("click", async () => {
                 // }
                 const gameBoard = document.getElementById("queens-game-board");
                 let cells = null;
+                // every cell in the queens board has a role = "button" attribute
                 if (gameBoard != null) {
                     cells = gameBoard.querySelectorAll('[role="button"]');
                 }
+                // determine overall board size by examining the aria-label attribute of each cell and finding the end of the first row
                 let size = null;
                 if (cells != null) {
                     for (let i = 1; i < cells.length; i++) {
@@ -94,26 +98,38 @@ document.getElementById("solve-btn")?.addEventListener("click", async () => {
                         }
                     }
                 }
+                // board construction
                 const board = [];
                 if (size == null || cells == null) {
                     return;
                 }
+                // create a map from color text string description to color idx (how it is represented in solver)
                 let color_map = new Map();
                 let color_val = 0;
+                // iterate over the entire board
                 for (let r = 0; r < size; r++) {
                     const row = [];
                     for (let c = 0; c < size; c++) {
+                        // examine the current cell
                         const cellIdx = r * size + c;
                         const cell = cells[cellIdx];
+                        // get the description of the cell via the aria-label attribute
+                        // sample description: "Empty cell of color Rose Pink, row 1, column 2"
                         let description = cell.getAttribute('aria-label');
                         if (description == null) {
                             return;
                         }
+                        // examine the color of the label by looking at where "color" occurs then the following characters until there is a comma
+                        // . : match any non-newline character
+                        // + : grab as much as possible
+                        // ? : grab as little as possible for regex to work
                         const color = description.match(/color (.+?),/)?.[1] || '';
+                        // set key = color text string, value = color index
                         if (!color_map.has(color)) {
                             color_map.set(color, color_val);
                             color_val++;
                         }
+                        // add the numberic representation of the color to the board
                         row.push(color_map.get(color));
                     }
                     board.push(row);
@@ -121,19 +137,26 @@ document.getElementById("solve-btn")?.addEventListener("click", async () => {
                 return board;
             }
         }).then(res => res[0].result) || [];
-        // get commands list from solve_sudoku function, passing in original board (2D array of elements (values: 0-6))
+        // the coordinates of the queens (r,c) ... from the solve_queens function
         let queen_coords = solve_queens(board);
+        // fill in queens board
         await chrome.scripting.executeScript({
             target: { tabId: tab.id, allFrames: true },
+            // use an asynchronous function because all clicks immediately back to back does not work, so we incorporate sleep
             func: async (queen_coords) => {
+                // define a function that represents sleeping for ms milliseconds
                 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+                // get the board and cells from the page
                 const board = document.getElementById("queens-game-board");
                 let cells = board?.querySelectorAll('[role="button"]') || [];
+                // determine the board size
                 const size = Math.sqrt(cells.length);
+                // define a function that clicks a cell based on its row and column
                 const clickCell = (row, col) => {
+                    // determine current cell
                     const idx = row * size + col;
                     const cell = cells[idx];
-                    // try multiple click methods
+                    // try multiple click methods: first one is 
                     (cell.firstElementChild || cell).click();
                     cell.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
                     cell.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
@@ -217,6 +240,137 @@ document.getElementById("solve-btn")?.addEventListener("click", async () => {
                 }
             },
             args: [commands]
+        });
+    }
+    else if (url?.includes("tango")) {
+        const [board, equals, crosses] = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: () => {
+                // checking for iframe to ensure it works in both logged in and logged out version
+                let root = document;
+                // store raw cells as HTMLElement Array
+                const info = Array.from(root.querySelectorAll('[id^=tango-cell]'));
+                console.log(info);
+                let cells = [];
+                for (let i = 0; i < info.length; i += 2) {
+                    cells.push(info[i]);
+                }
+                console.log(cells);
+                const board = [];
+                const SIZE = 6;
+                for (let r = 0; r < SIZE; r++) {
+                    const row = [];
+                    for (let c = 0; c < SIZE; c++) {
+                        const cellIdx = r * SIZE + c;
+                        const cell = cells[cellIdx];
+                        if (cell.innerHTML.includes("Sun")) {
+                            row.push(1);
+                        }
+                        else if (cell.innerHTML.includes("Moon")) {
+                            row.push(2);
+                        }
+                        else {
+                            row.push(0);
+                        }
+                    }
+                    board.push(row);
+                }
+                let equals = [];
+                let crosses = [];
+                for (let i = 0; i < cells.length; i++) {
+                    let r = Math.floor(i / SIZE);
+                    let c = i % SIZE;
+                    if (cells[i].innerHTML.includes('equal')) {
+                        const constraints = cells[i].querySelectorAll('[data-testid="edge-equal"]');
+                        for (let constraint of constraints) {
+                            const cell_rect = cells[i].getBoundingClientRect(); // obtain bounding rectangle for full cell
+                            const constraint_rect = constraint?.getBoundingClientRect(); // obtain bounding rectangle for equal/cross (constraint)
+                            if (cell_rect && constraint_rect) {
+                                // top: y = 0
+                                // left: x = 0
+                                const constraint_center_x = constraint_rect.left + constraint_rect.width / 2; // determine constraint center x coordinate
+                                const constraint_center_y = constraint_rect.top + constraint_rect.height / 2; // determine constraint center y coordinate
+                                const relative_x = constraint_center_x - cell_rect.left; // delta x between top left of cell and constraint center x
+                                const relative_y = constraint_center_y - cell_rect.top; // delta y between top left of cell and constraint center y
+                                if (relative_y > relative_x) {
+                                    console.log("bottom edge");
+                                    let con = [r, c, r + 1, c];
+                                    equals.push(con);
+                                }
+                                else {
+                                    console.log("right edge");
+                                    let con = [r, c, r, c + 1];
+                                    equals.push(con);
+                                }
+                            }
+                        }
+                        console.log(cells[i].offsetHeight + "," + cells[i].offsetLeft, +"," + cells[i].offsetTop + "," + cells[i].offsetWidth);
+                    }
+                    else if (cells[i].innerHTML.includes('cross')) {
+                        const constraints = cells[i].querySelectorAll('[data-testid="edge-cross"]');
+                        for (let constraint of constraints) {
+                            const cell_rect = cells[i].getBoundingClientRect(); // obtain bounding rectangle for full cell
+                            const constraint_rect = constraint?.getBoundingClientRect(); // obtain bounding rectangle for equal/cross (constraint)
+                            if (cell_rect && constraint_rect) {
+                                // top: y = 0
+                                // left: x = 0
+                                const constraint_center_x = constraint_rect.left + constraint_rect.width / 2; // determine constraint center x coordinate
+                                const constraint_center_y = constraint_rect.top + constraint_rect.height / 2; // determine constraint center y coordinate
+                                const relative_x = constraint_center_x - cell_rect.left; // delta x between top left of cell and constraint center x
+                                const relative_y = constraint_center_y - cell_rect.top; // delta y between top left of cell and constraint center y
+                                if (relative_y > relative_x) {
+                                    console.log("bottom edge");
+                                    let con = [r, c, r + 1, c];
+                                    crosses.push(con);
+                                }
+                                else {
+                                    console.log("right edge");
+                                    let con = [r, c, r, c + 1];
+                                    crosses.push(con);
+                                }
+                            }
+                        }
+                    }
+                }
+                return [board, equals, crosses];
+            }
+        }).then(res => res[0].result);
+        // the coordinates of the queens (r,c) ... from the solve_queens function
+        let solved_tango = solve_tango(board, equals, crosses);
+        console.log(solved_tango);
+        // fill in queens board
+        await chrome.scripting.executeScript({
+            target: { tabId: tab.id, allFrames: true },
+            // use an asynchronous function because all clicks immediately back to back does not work, so we incorporate sleep
+            func: async (solved_tango) => {
+                // define a function that represents sleeping for ms milliseconds
+                const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+                // get the board and cells from the page
+                const board = document.querySelector('[data-testid="tango-gameboard-wrapper"]');
+                let cells = board?.querySelectorAll('[role="button"]') || [];
+                // determine the board size
+                const size = Math.sqrt(cells.length);
+                // define a function that clicks a cell based on its row and column
+                const clickCell = (row, col) => {
+                    // determine current cell
+                    const idx = row * size + col;
+                    const cell = cells[idx];
+                    // try multiple click methods: first one is 
+                    (cell.firstElementChild || cell).click();
+                    cell.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+                    cell.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+                    cell.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+                };
+                for (let r = 0; r < size; r++) {
+                    for (let c = 0; c < size; c++) {
+                        for (let cl = 0; cl < solved_tango[r][c]; cl++) {
+                            clickCell(r, c);
+                            await sleep(1);
+                        }
+                    }
+                }
+            },
+            args: [solved_tango]
         });
     }
 });
