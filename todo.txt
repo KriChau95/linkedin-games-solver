@@ -1,4 +1,4 @@
-Total Tasks Remaining: 32
+Total Tasks Remaining: 29
 
 Queens:
 
@@ -14,11 +14,8 @@ Zip:
 
 Tango:
 
-1. parse page
-2. logic in TS
-3. submit on page
-4. logged out functionality
-5. comments
+1. logged out functionality
+2. comments
 
 Patches:
 

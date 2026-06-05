@@ -243,17 +243,23 @@ document.getElementById("solve-btn")?.addEventListener("click", async() =>{
         });
 
     } else if (url?.includes("zip")){
+
+        // parse board and save representation as 2D array of board, and list of wall coordinates
         const [board, walls]: [number[][], wall[]] = await chrome.scripting.executeScript({
 
             target: {tabId: tab.id},
             func: () => {
 
+                // process all the cells into an array
                 let cells = Array.from(document.querySelectorAll('[data-cell-idx]'));
 
                 // initialize empty board
                 const board: number[][] = [];
+
+                // determine the board size as a square root of total number of cells in the board
                 const BOARD_SIZE = ~~Math.sqrt(cells.length);
 
+                // initialize empty list of walls
                 const walls: wall[] = [];
 
                 // loop through 1D Array of cells to parse it into a 2D array - board
@@ -269,28 +275,34 @@ document.getElementById("solve-btn")?.addEventListener("click", async() =>{
                         
                         // get full cell and descendants (needed to process walls)
                         const complete_cell = [cell, ...cell.querySelectorAll('*')];
-
+                        
+                        // examine all descendants of the cell
                         for (let element of complete_cell){
-
+                            
+                            // check for attributes indicating presence of a wall
                             const after = window.getComputedStyle(element, '::after');
                             const border_right_width = after.getPropertyValue('border-right-width');
                             const border_bottom_width = after.getPropertyValue('border-bottom-width');
 
+                            // if there is a right wall, store curr cell and cell to the right info to walls
                             if (border_right_width != '0px'){
                                 let curr_wall: wall = [r,c,r,c+1];
                                 walls.push(curr_wall);
                             }
-
+                            
+                            // if there is a bottom wall, store curr cell and cell to the bottom info to walls
                             if (border_bottom_width != '0px'){
                                 let curr_wall: wall = [r,c,r+1,c];
                                 walls.push(curr_wall)
                             }
                      
-
                         }
 
+                        // extract value of number at the cell if there is any
                         const valueText = cell?.getAttribute('aria-label') || '';
                         const numText = valueText.substring(valueText.indexOf(' ') + 1)
+                        
+                        // save number as is if present, otherwise save it as 0
                         row.push(valueText === '' ? 0 : parseInt(numText, 10));
                     }
                     
@@ -306,13 +318,13 @@ document.getElementById("solve-btn")?.addEventListener("click", async() =>{
          // get commands list from solve_zip function, passing in original board (2D array of elements (values: 0-6))
         let commands: KeyPress[] = solve_zip(board, walls);
 
-        console.log(commands);
-
         // execute script to fill in sudoku by passing in commands in args list
         await chrome.scripting.executeScript({
             target: {tabId: tab.id, allFrames: true},
             func: async (commands) => {
-
+                
+                // helper sleep function to pause between key presses to enable extension
+                // to interact reasonably with the webpage
                 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
                 // create a function called pressKey that takes in key, code, and keyCode of a key
