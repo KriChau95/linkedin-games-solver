@@ -2,7 +2,6 @@
 
 // defining types
 export type Tuple = [number, number];
-type KeyPress = [string, string, number];
 
 export function solve_queens(board: number[][]){
 

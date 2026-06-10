@@ -1,0 +1,64 @@
+body {
+  width: 300px;
+  height: 100px;
+  margin: 0;
+  padding: 16px;
+  font-family: Inter, system-ui, sans-serif;
+  background: #0a66c2;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+h1 {
+  margin: 0;
+  color: white;
+  font-size: 24px;
+  font-weight: 700;
+  text-align: center;
+}
+
+
+button {
+  border: none;
+  border-radius: 10px;
+  background: #0a66c2;
+  color: #0a66c2;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+#solve-btn {
+    margin-top: 12px;
+    width: 100%;
+    height: 70px;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+}
+
+#solve-btn.sudoku {
+    background-image: url("images/sudoku-button.png");
+}
+
+#solve-btn.queens {
+    background-image: url("images/queens-button.png");
+}
+
+#solve-btn.tango {
+    background-image: url("images/tango-button.png");
+}
+
+#solve-btn.zip {
+    background-image: url("images/zip-button.png");
+}
+
+button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}

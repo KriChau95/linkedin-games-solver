@@ -5,6 +5,29 @@ import { solve_sudoku } from './sudoku_solver.js';
 import { solve_zip, wall } from './zip_solver.js';
 import { Constraint, solve_tango } from './tango_solver.js';
 
+const solver_label = document.getElementById("solver-label")!;
+const button = document.getElementById("solve-btn")!;
+
+(async () => {
+    const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true
+    });
+
+    const url = tab?.url ?? "";
+    
+    if (url.includes("sudoku")) {
+        button.classList.add("sudoku");
+    } else if (url.includes("queens")) {
+        button.classList.add("queens");
+    } else if (url.includes("tango")) {
+        button.classList.add("tango");
+    } else if (url.includes("zip")) {
+        button.classList.add("zip");
+    }
+    
+})();
+
 document.getElementById("solve-btn")?.addEventListener("click", async() =>{
 
     // getting the current active tab
@@ -107,8 +130,24 @@ document.getElementById("solve-btn")?.addEventListener("click", async() =>{
     } else if (url?.includes("queens")){ // queens solver
 
         // extract the board by getting each cell
+
+        const frameResults = await chrome.scripting.executeScript({
+            target: {
+                tabId: tab.id,
+                allFrames: true,
+            },
+            func: () => {
+                const grid = document.getElementById("queens-grid");
+                return grid?.querySelectorAll('[role="button"]').length ?? 0;
+            },
+        });
+
+        console.log(frameResults);
+
+        const queensFrameId = frameResults.find(r => (r.result ?? 0) > 0)?.frameId || 0;
+
         const board: number[][] = await chrome.scripting.executeScript({
-            target: {tabId: tab.id},
+            target: {tabId: tab.id, frameIds: [queensFrameId]},
             func: () => {
 
                 // checking for iframe to ensure it works in both logged in and logged out version
@@ -120,13 +159,19 @@ document.getElementById("solve-btn")?.addEventListener("click", async() =>{
                 //     root = iframe.contentDocument;
                 // }
 
-                const gameBoard = document.getElementById("queens-game-board")
+                let gameBoard = document.getElementById("queens-game-board")
                 
                 let cells = null;
 
                 // every cell in the queens board has a role = "button" attribute
                 if (gameBoard != null){
                     cells = gameBoard.querySelectorAll('[role="button"]')
+                } else {
+                    gameBoard = document.getElementById("queens-grid");
+                    if (gameBoard != null){
+                        cells = gameBoard.querySelectorAll('[role="button"]');
+                        console.log(cells);
+                    }
                 }
 
                 // determine overall board size by examining the aria-label attribute of each cell and finding the end of the first row
@@ -190,7 +235,7 @@ document.getElementById("solve-btn")?.addEventListener("click", async() =>{
                     board.push(row);
 
                 }
-
+                console.log(board);
                 return board;
             }
 
@@ -210,8 +255,13 @@ document.getElementById("solve-btn")?.addEventListener("click", async() =>{
                 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
                 // get the board and cells from the page
-                const board = document.getElementById("queens-game-board");
+                let board = document.getElementById("queens-game-board");
                 let cells = board?.querySelectorAll('[role="button"]') || [];
+
+                if (cells.length == 0){
+                    board = document.getElementById("queens-grid");
+                    cells = board?.querySelectorAll('[role="button"]') || [];
+                }
 
                 // determine the board size
                 const size = Math.sqrt(cells.length);
@@ -250,9 +300,24 @@ document.getElementById("solve-btn")?.addEventListener("click", async() =>{
             target: {tabId: tab.id},
             func: () => {
 
+                let root = document;
+                
                 // process all the cells into an array
-                let cells = Array.from(document.querySelectorAll('[data-cell-idx]'));
+                let cells = Array.from(root.querySelectorAll('[data-cell-idx]'));
 
+
+                if (cells.length == 0){
+
+                    const iframe = document.querySelector("iframe");
+
+                    if (iframe?.contentDocument) {
+                        root = iframe.contentDocument;
+                        cells = Array.from(root.querySelectorAll('[data-cell-idx]'));
+                    }
+
+                }
+
+                console.log(cells);
                 // initialize empty board
                 const board: number[][] = [];
 
@@ -299,7 +364,8 @@ document.getElementById("solve-btn")?.addEventListener("click", async() =>{
                         }
 
                         // extract value of number at the cell if there is any
-                        const valueText = cell?.getAttribute('aria-label') || '';
+                        console.log(cell);
+                        const valueText = cell?.getAttribute('aria-label') || cell?.querySelector('.trail-cell-content')?.textContent?.trim() || '';
                         const numText = valueText.substring(valueText.indexOf(' ') + 1)
                         
                         // save number as is if present, otherwise save it as 0
@@ -309,7 +375,8 @@ document.getElementById("solve-btn")?.addEventListener("click", async() =>{
                     board.push(row);
 
                 }
-
+                console.log(board);
+                console.log(walls);
                 return [board, walls] as [number[][], wall[]];
             }
 
@@ -356,19 +423,41 @@ document.getElementById("solve-btn")?.addEventListener("click", async() =>{
             args: [commands]
         });
     } else if (url?.includes("tango")){
+
+        const frameResults = await chrome.scripting.executeScript({
+            target: {
+                tabId: tab.id,
+                allFrames: true,
+            },
+            func: () => {
+                const grid = document.querySelector(".lotka-grid");
+                console.log(grid);
+                return grid?.querySelectorAll('[role="button"]').length ?? 0;
+            },
+        });
+
+        console.log(frameResults);
+
+        const tangoBoardId = frameResults.find(r => (r.result ?? 0) > 0)?.frameId || 0;
             
         const [board, equals, crosses]: [number[][], Constraint[], Constraint[]]  = await chrome.scripting.executeScript({
 
-            target: {tabId: tab.id},
+            target: {tabId: tab.id, frameIds: [tangoBoardId]},
             func: () => {
 
                 // checking for iframe to ensure it works in both logged in and logged out version
                 let root = document;
 
                 // store raw cells as HTMLElement Array
-                const info = Array.from(root.querySelectorAll('[id^=tango-cell]'));
+                let info = Array.from(root.querySelectorAll('[id^=tango-cell]'));
 
                 console.log(info);
+                
+                if (info.length == 0){
+
+                    info = Array.from(root.querySelectorAll('[id^=lotka-cell]'));
+                    console.log(info);   
+                }
 
                 let cells: HTMLElement[] = []
 
@@ -410,14 +499,17 @@ document.getElementById("solve-btn")?.addEventListener("click", async() =>{
                 let equals: Constraint[] = [];
                 let crosses: Constraint[] = [];
 
-
                 for (let i = 0; i < cells.length; i++){
 
                     let r = Math.floor(i / SIZE);
                     let c = i % SIZE;
 
-                    if(cells[i].innerHTML.includes('equal') ){
-                        const constraints = cells[i].querySelectorAll('[data-testid="edge-equal"]');
+                    if(cells[i].innerHTML.includes('equal') || cells[i].innerHTML.includes('Equal') ){
+                        let constraints = cells[i].querySelectorAll('[data-testid="edge-equal"]');
+                        
+                        if (constraints.length == 0){
+                            constraints = cells[i].querySelectorAll('[id="="]');
+                        }
                         
                         for (let constraint of constraints){
 
@@ -449,9 +541,13 @@ document.getElementById("solve-btn")?.addEventListener("click", async() =>{
 
                         }
                         console.log(cells[i].offsetHeight + "," + cells[i].offsetLeft, + "," + cells[i].offsetTop + "," + cells[i].offsetWidth);
-                    } else if(cells[i].innerHTML.includes('cross') ){
-                        const constraints = cells[i].querySelectorAll('[data-testid="edge-cross"]');
+                    } else if(cells[i].innerHTML.includes('cross') || cells[i].innerHTML.includes('Cross') ){
+                        let constraints = cells[i].querySelectorAll('[data-testid="edge-cross"]');
                         
+                        if (constraints.length == 0){
+                            constraints = cells[i].querySelectorAll('.lotka-edge-sign-path:not([id])');
+                        }
+
                         for (let constraint of constraints){
 
                             const cell_rect = cells[i].getBoundingClientRect(); // obtain bounding rectangle for full cell
@@ -486,6 +582,9 @@ document.getElementById("solve-btn")?.addEventListener("click", async() =>{
 
                 }
 
+                console.log(equals);
+                console.log(crosses);
+
                 return [board, equals, crosses] as [number[][], Constraint[], Constraint[]];
 
             }
@@ -508,8 +607,13 @@ document.getElementById("solve-btn")?.addEventListener("click", async() =>{
 
                 // get the board and cells from the page
 
-                const board = document.querySelector('[data-testid="tango-gameboard-wrapper"]')
+                let board = document.querySelector('[data-testid="tango-gameboard-wrapper"]')
                 let cells = board?.querySelectorAll('[role="button"]') || [];
+
+                if (cells.length == 0){
+                    board = document.querySelector(".lotka-grid");
+                    cells = board?.querySelectorAll('[role="button"]') || [];
+                }
 
                 // determine the board size
                 const size = Math.sqrt(cells.length);

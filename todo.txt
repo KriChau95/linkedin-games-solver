@@ -1,21 +1,25 @@
-Total Tasks Remaining: 29
+Total Tasks Remaining: 30
 
 Queens:
 
-1. determine which click method actually does smth: are both necessary?
-2. determine minimum sleep ms (1 is reasonable floor)
-3. logged out functionality
-4. comments
+1. comments
 
 Zip:
 
-1. logged out functionality
-2. comments
+1. comments
 
 Tango:
 
-1. logged out functionality
-2. comments
+1. comments
+
+Wend:
+
+1. python Logic
+2. parse page
+3. logic in TS
+4. submit on page
+5. logged out functionality
+6. comments
 
 Patches:
 
@@ -45,7 +49,6 @@ Pinpoint:
 6. comments
 
 Other:
-1. clean up 
+1. clean up
 2. comment python files
 3. README
-4. Nice UI

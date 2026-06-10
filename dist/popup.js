@@ -3,6 +3,27 @@ import { solve_queens } from './queens_solver.js';
 import { solve_sudoku } from './sudoku_solver.js';
 import { solve_zip } from './zip_solver.js';
 import { solve_tango } from './tango_solver.js';
+const solver_label = document.getElementById("solver-label");
+const button = document.getElementById("solve-btn");
+(async () => {
+    const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true
+    });
+    const url = tab?.url ?? "";
+    if (url.includes("sudoku")) {
+        button.classList.add("sudoku");
+    }
+    else if (url.includes("queens")) {
+        button.classList.add("queens");
+    }
+    else if (url.includes("tango")) {
+        button.classList.add("tango");
+    }
+    else if (url.includes("zip")) {
+        button.classList.add("zip");
+    }
+})();
 document.getElementById("solve-btn")?.addEventListener("click", async () => {
     // getting the current active tab
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -73,8 +94,20 @@ document.getElementById("solve-btn")?.addEventListener("click", async () => {
     }
     else if (url?.includes("queens")) { // queens solver
         // extract the board by getting each cell
+        const frameResults = await chrome.scripting.executeScript({
+            target: {
+                tabId: tab.id,
+                allFrames: true,
+            },
+            func: () => {
+                const grid = document.getElementById("queens-grid");
+                return grid?.querySelectorAll('[role="button"]').length ?? 0;
+            },
+        });
+        console.log(frameResults);
+        const queensFrameId = frameResults.find(r => (r.result ?? 0) > 0)?.frameId || 0;
         const board = await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
+            target: { tabId: tab.id, frameIds: [queensFrameId] },
             func: () => {
                 // checking for iframe to ensure it works in both logged in and logged out version
                 let root = document;
@@ -82,11 +115,18 @@ document.getElementById("solve-btn")?.addEventListener("click", async () => {
                 // if (iframe?.contentDocument) {
                 //     root = iframe.contentDocument;
                 // }
-                const gameBoard = document.getElementById("queens-game-board");
+                let gameBoard = document.getElementById("queens-game-board");
                 let cells = null;
                 // every cell in the queens board has a role = "button" attribute
                 if (gameBoard != null) {
                     cells = gameBoard.querySelectorAll('[role="button"]');
+                }
+                else {
+                    gameBoard = document.getElementById("queens-grid");
+                    if (gameBoard != null) {
+                        cells = gameBoard.querySelectorAll('[role="button"]');
+                        console.log(cells);
+                    }
                 }
                 // determine overall board size by examining the aria-label attribute of each cell and finding the end of the first row
                 let size = null;
@@ -134,6 +174,7 @@ document.getElementById("solve-btn")?.addEventListener("click", async () => {
                     }
                     board.push(row);
                 }
+                console.log(board);
                 return board;
             }
         }).then(res => res[0].result) || [];
@@ -147,8 +188,12 @@ document.getElementById("solve-btn")?.addEventListener("click", async () => {
                 // define a function that represents sleeping for ms milliseconds
                 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
                 // get the board and cells from the page
-                const board = document.getElementById("queens-game-board");
+                let board = document.getElementById("queens-game-board");
                 let cells = board?.querySelectorAll('[role="button"]') || [];
+                if (cells.length == 0) {
+                    board = document.getElementById("queens-grid");
+                    cells = board?.querySelectorAll('[role="button"]') || [];
+                }
                 // determine the board size
                 const size = Math.sqrt(cells.length);
                 // define a function that clicks a cell based on its row and column
@@ -173,13 +218,26 @@ document.getElementById("solve-btn")?.addEventListener("click", async () => {
         });
     }
     else if (url?.includes("zip")) {
+        // parse board and save representation as 2D array of board, and list of wall coordinates
         const [board, walls] = await chrome.scripting.executeScript({
             target: { tabId: tab.id },
             func: () => {
-                let cells = Array.from(document.querySelectorAll('[data-cell-idx]'));
+                let root = document;
+                // process all the cells into an array
+                let cells = Array.from(root.querySelectorAll('[data-cell-idx]'));
+                if (cells.length == 0) {
+                    const iframe = document.querySelector("iframe");
+                    if (iframe?.contentDocument) {
+                        root = iframe.contentDocument;
+                        cells = Array.from(root.querySelectorAll('[data-cell-idx]'));
+                    }
+                }
+                console.log(cells);
                 // initialize empty board
                 const board = [];
+                // determine the board size as a square root of total number of cells in the board
                 const BOARD_SIZE = ~~Math.sqrt(cells.length);
+                // initialize empty list of walls
                 const walls = [];
                 // loop through 1D Array of cells to parse it into a 2D array - board
                 for (let r = 0; r < BOARD_SIZE; r++) {
@@ -190,35 +248,45 @@ document.getElementById("solve-btn")?.addEventListener("click", async () => {
                         const cell = cells[cellIdx];
                         // get full cell and descendants (needed to process walls)
                         const complete_cell = [cell, ...cell.querySelectorAll('*')];
+                        // examine all descendants of the cell
                         for (let element of complete_cell) {
+                            // check for attributes indicating presence of a wall
                             const after = window.getComputedStyle(element, '::after');
                             const border_right_width = after.getPropertyValue('border-right-width');
                             const border_bottom_width = after.getPropertyValue('border-bottom-width');
+                            // if there is a right wall, store curr cell and cell to the right info to walls
                             if (border_right_width != '0px') {
                                 let curr_wall = [r, c, r, c + 1];
                                 walls.push(curr_wall);
                             }
+                            // if there is a bottom wall, store curr cell and cell to the bottom info to walls
                             if (border_bottom_width != '0px') {
                                 let curr_wall = [r, c, r + 1, c];
                                 walls.push(curr_wall);
                             }
                         }
-                        const valueText = cell?.getAttribute('aria-label') || '';
+                        // extract value of number at the cell if there is any
+                        console.log(cell);
+                        const valueText = cell?.getAttribute('aria-label') || cell?.querySelector('.trail-cell-content')?.textContent?.trim() || '';
                         const numText = valueText.substring(valueText.indexOf(' ') + 1);
+                        // save number as is if present, otherwise save it as 0
                         row.push(valueText === '' ? 0 : parseInt(numText, 10));
                     }
                     board.push(row);
                 }
+                console.log(board);
+                console.log(walls);
                 return [board, walls];
             }
         }).then(res => res[0].result);
         // get commands list from solve_zip function, passing in original board (2D array of elements (values: 0-6))
         let commands = solve_zip(board, walls);
-        console.log(commands);
         // execute script to fill in sudoku by passing in commands in args list
         await chrome.scripting.executeScript({
             target: { tabId: tab.id, allFrames: true },
             func: async (commands) => {
+                // helper sleep function to pause between key presses to enable extension
+                // to interact reasonably with the webpage
                 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
                 // create a function called pressKey that takes in key, code, and keyCode of a key
                 // and creates a Keyboard event for a full key press cycle simulation
@@ -243,14 +311,31 @@ document.getElementById("solve-btn")?.addEventListener("click", async () => {
         });
     }
     else if (url?.includes("tango")) {
+        const frameResults = await chrome.scripting.executeScript({
+            target: {
+                tabId: tab.id,
+                allFrames: true,
+            },
+            func: () => {
+                const grid = document.querySelector(".lotka-grid");
+                console.log(grid);
+                return grid?.querySelectorAll('[role="button"]').length ?? 0;
+            },
+        });
+        console.log(frameResults);
+        const tangoBoardId = frameResults.find(r => (r.result ?? 0) > 0)?.frameId || 0;
         const [board, equals, crosses] = await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
+            target: { tabId: tab.id, frameIds: [tangoBoardId] },
             func: () => {
                 // checking for iframe to ensure it works in both logged in and logged out version
                 let root = document;
                 // store raw cells as HTMLElement Array
-                const info = Array.from(root.querySelectorAll('[id^=tango-cell]'));
+                let info = Array.from(root.querySelectorAll('[id^=tango-cell]'));
                 console.log(info);
+                if (info.length == 0) {
+                    info = Array.from(root.querySelectorAll('[id^=lotka-cell]'));
+                    console.log(info);
+                }
                 let cells = [];
                 for (let i = 0; i < info.length; i += 2) {
                     cells.push(info[i]);
@@ -280,8 +365,11 @@ document.getElementById("solve-btn")?.addEventListener("click", async () => {
                 for (let i = 0; i < cells.length; i++) {
                     let r = Math.floor(i / SIZE);
                     let c = i % SIZE;
-                    if (cells[i].innerHTML.includes('equal')) {
-                        const constraints = cells[i].querySelectorAll('[data-testid="edge-equal"]');
+                    if (cells[i].innerHTML.includes('equal') || cells[i].innerHTML.includes('Equal')) {
+                        let constraints = cells[i].querySelectorAll('[data-testid="edge-equal"]');
+                        if (constraints.length == 0) {
+                            constraints = cells[i].querySelectorAll('[id="="]');
+                        }
                         for (let constraint of constraints) {
                             const cell_rect = cells[i].getBoundingClientRect(); // obtain bounding rectangle for full cell
                             const constraint_rect = constraint?.getBoundingClientRect(); // obtain bounding rectangle for equal/cross (constraint)
@@ -306,8 +394,11 @@ document.getElementById("solve-btn")?.addEventListener("click", async () => {
                         }
                         console.log(cells[i].offsetHeight + "," + cells[i].offsetLeft, +"," + cells[i].offsetTop + "," + cells[i].offsetWidth);
                     }
-                    else if (cells[i].innerHTML.includes('cross')) {
-                        const constraints = cells[i].querySelectorAll('[data-testid="edge-cross"]');
+                    else if (cells[i].innerHTML.includes('cross') || cells[i].innerHTML.includes('Cross')) {
+                        let constraints = cells[i].querySelectorAll('[data-testid="edge-cross"]');
+                        if (constraints.length == 0) {
+                            constraints = cells[i].querySelectorAll('.lotka-edge-sign-path:not([id])');
+                        }
                         for (let constraint of constraints) {
                             const cell_rect = cells[i].getBoundingClientRect(); // obtain bounding rectangle for full cell
                             const constraint_rect = constraint?.getBoundingClientRect(); // obtain bounding rectangle for equal/cross (constraint)
@@ -332,6 +423,8 @@ document.getElementById("solve-btn")?.addEventListener("click", async () => {
                         }
                     }
                 }
+                console.log(equals);
+                console.log(crosses);
                 return [board, equals, crosses];
             }
         }).then(res => res[0].result);
@@ -346,8 +439,12 @@ document.getElementById("solve-btn")?.addEventListener("click", async () => {
                 // define a function that represents sleeping for ms milliseconds
                 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
                 // get the board and cells from the page
-                const board = document.querySelector('[data-testid="tango-gameboard-wrapper"]');
+                let board = document.querySelector('[data-testid="tango-gameboard-wrapper"]');
                 let cells = board?.querySelectorAll('[role="button"]') || [];
+                if (cells.length == 0) {
+                    board = document.querySelector(".lotka-grid");
+                    cells = board?.querySelectorAll('[role="button"]') || [];
+                }
                 // determine the board size
                 const size = Math.sqrt(cells.length);
                 // define a function that clicks a cell based on its row and column
